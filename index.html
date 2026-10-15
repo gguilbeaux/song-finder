@@ -229,6 +229,20 @@
     });
   }
 
+  // Try a normal request first; if the browser blocks it, fall back to JSONP.
+  function getResults(url) {
+    return fetch(url, { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .catch(function (e1) {
+        return jsonp(url).catch(function (e2) {
+          throw new Error('fetch: ' + e1.message + ', jsonp: ' + e2.message);
+        });
+      });
+  }
+
   function fmtTime(ms) {
     if (!ms) return '';
     var s = Math.round(ms / 1000);
@@ -325,7 +339,7 @@
     var url = 'https://itunes.apple.com/search?media=music&entity=song&attribute=songTerm'
       + '&limit=' + limit + '&term=' + encodeURIComponent(term);
 
-    jsonp(url).then(function (data) {
+    getResults(url).then(function (data) {
       var items = (data && data.results) || [];
       if (!items.length) {
         setStatus('No songs found for “' + term + '”. Try fewer words or a different spelling.');
@@ -333,8 +347,8 @@
       }
       setStatus(items.length + ' song' + (items.length === 1 ? '' : 's') + ' for “' + term + '”');
       render(items);
-    }).catch(function () {
-      setStatus('Could not reach iTunes. Check your connection and try again.', true);
+    }).catch(function (err) {
+      setStatus('Could not reach iTunes. Wait a few seconds and try again. (' + (err && err.message ? err.message : 'unknown error') + ')', true);
     });
   }
 
