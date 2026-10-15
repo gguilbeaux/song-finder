@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Song Finder</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Song Finder">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#14110f">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<style>
+  /* Layout: one column, sticky search bar on top, result rows below. */
+  :root {
+    --bg: #f6f3ee;
+    --surface: #ffffff;
+    --fg: #1c1814;
+    --muted: #7a7268;
+    --line: #e4ded4;
+    --accent: #d8432b;
+    --accent-fg: #ffffff;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14110f;
+      --surface: #1f1b18;
+      --fg: #f3eee7;
+      --muted: #9a9187;
+      --line: #2f2a26;
+      --accent: #ff6a4d;
+      --accent-fg: #1a0d09;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  header.top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--bg);
+    padding-top: max(14px, env(safe-area-inset-top, 0px));
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+    font-weight: 800;
+  }
+  form { display: flex; gap: 8px; }
+  input[type="search"] {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 16px; /* prevents iOS zoom on focus */
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type="search"]:focus-visible,
+  select:focus-visible,
+  button:focus-visible,
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.go {
+    font: inherit;
+    font-weight: 700;
+    border: 0;
+    border-radius: 12px;
+    padding: 0 18px;
+    background: var(--accent);
+    color: var(--accent-fg);
+  }
+  .opts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  select {
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--fg);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 8px;
+  }
+  #status { padding: 16px 0 4px; color: var(--muted); font-size: 0.9rem; min-height: 1.5em; }
+  #status.err { color: var(--accent); }
+  ul.results { list-style: none; margin: 0; padding: 0; }
+  li.row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .art {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    background: var(--surface);
+    object-fit: cover;
+  }
+  .meta { min-width: 0; }
+  .title {
+    font-weight: 650;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .sub.small { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; align-items: center; gap: 6px; }
+  .play, .open {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--fg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 0.95rem;
+    padding: 0;
+  }
+  .play[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .play[disabled] { opacity: 0.35; }
+  .hint { color: var(--muted); font-size: 0.85rem; line-height: 1.5; padding-top: 8px; }
+  @media (prefers-reduced-motion: no-preference) {
+    button, a { transition: background-color .15s, color .15s; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Song Finder</h1>
+    <form id="f" autocomplete="off">
+      <input id="q" type="search" placeholder="Song name" enterkeyhint="search" autocapitalize="off" autocorrect="off" aria-label="Song name">
+      <button class="go" type="submit">Search</button>
+    </form>
+    <div class="opts">
+      <label for="n">Results</label>
+      <select id="n">
+        <option value="10">10</option>
+        <option value="15">15</option>
+        <option value="25" selected>25</option>
+      </select>
+    </div>
+  </header>
+
+  <div id="status" role="status" aria-live="polite"></div>
+  <ul class="results" id="list"></ul>
+  <p class="hint" id="hint">Type a song title and tap Search. Tap the play button to hear a 30-second preview, or the arrow to open the song in Apple Music.</p>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('f');
+  var q = document.getElementById('q');
+  var n = document.getElementById('n');
+  var list = document.getElementById('list');
+  var statusEl = document.getElementById('status');
+  var hint = document.getElementById('hint');
+
+  var audio = new Audio();
+  var currentBtn = null;
+
+  try {
+    var saved = localStorage.getItem('sf_limit');
+    if (saved) n.value = saved;
+  } catch (e) {}
+
+  function setStatus(msg, isErr) {
+    statusEl.textContent = msg || '';
+    statusEl.className = isErr ? 'err' : '';
+  }
+
+  // iTunes Search API, loaded with JSONP so it works from any host.
+  function jsonp(url) {
+    return new Promise(function (resolve, reject) {
+      var cb = 'itunes_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+      var s = document.createElement('script');
+      var timer = setTimeout(function () { cleanup(); reject(new Error('timeout')); }, 12000);
+      function cleanup() {
+        clearTimeout(timer);
+        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+        if (s.parentNode) s.parentNode.removeChild(s);
+      }
+      window[cb] = function (data) { cleanup(); resolve(data); };
+      s.onerror = function () { cleanup(); reject(new Error('network')); };
+      s.src = url + '&callback=' + cb;
+      document.head.appendChild(s);
+    });
+  }
+
+  function fmtTime(ms) {
+    if (!ms) return '';
+    var s = Math.round(ms / 1000);
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+
+  function stopAudio() {
+    audio.pause();
+    if (currentBtn) {
+      currentBtn.setAttribute('aria-pressed', 'false');
+      currentBtn.textContent = '▶';
+      currentBtn.setAttribute('aria-label', 'Play preview');
+      currentBtn = null;
+    }
+  }
+  audio.addEventListener('ended', stopAudio);
+
+  function togglePlay(btn, url) {
+    if (currentBtn === btn) { stopAudio(); return; }
+    stopAudio();
+    audio.src = url;
+    var p = audio.play();
+    if (p && p.catch) p.catch(function () { setStatus('Could not play that preview.', true); stopAudio(); });
+    btn.setAttribute('aria-pressed', 'true');
+    btn.textContent = '❚❚';
+    btn.setAttribute('aria-label', 'Pause preview');
+    currentBtn = btn;
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function render(items) {
+    list.textContent = '';
+    items.forEach(function (t) {
+      var li = el('li', 'row');
+
+      var img = el('img', 'art');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.width = 56; img.height = 56;
+      if (t.artworkUrl100) img.src = t.artworkUrl100.replace('100x100', '200x200');
+      li.appendChild(img);
+
+      var meta = el('div', 'meta');
+      meta.appendChild(el('div', 'title', t.trackName || 'Untitled'));
+      meta.appendChild(el('div', 'sub', t.artistName || ''));
+      var bits = [];
+      if (t.collectionName) bits.push(t.collectionName);
+      if (t.releaseDate) bits.push(String(t.releaseDate).slice(0, 4));
+      var d = fmtTime(t.trackTimeMillis);
+      if (d) bits.push(d);
+      meta.appendChild(el('div', 'sub small', bits.join(' · ')));
+      li.appendChild(meta);
+
+      var actions = el('div', 'actions');
+      var play = el('button', 'play', '▶');
+      play.type = 'button';
+      play.setAttribute('aria-pressed', 'false');
+      play.setAttribute('aria-label', 'Play preview');
+      if (t.previewUrl) {
+        play.addEventListener('click', function () { togglePlay(play, t.previewUrl); });
+      } else {
+        play.disabled = true;
+      }
+      actions.appendChild(play);
+
+      if (t.trackViewUrl) {
+        var open = el('a', 'open', '↗');
+        open.href = t.trackViewUrl;
+        open.setAttribute('aria-label', 'Open in Apple Music');
+        open.rel = 'noopener';
+        actions.appendChild(open);
+      }
+      li.appendChild(actions);
+      list.appendChild(li);
+    });
+  }
+
+  function search(term) {
+    var limit = parseInt(n.value, 10) || 25;
+    try { localStorage.setItem('sf_limit', String(limit)); } catch (e) {}
+    stopAudio();
+    hint.hidden = true;
+    setStatus('Searching…');
+    list.textContent = '';
+
+    var url = 'https://itunes.apple.com/search?media=music&entity=song&attribute=songTerm'
+      + '&limit=' + limit + '&term=' + encodeURIComponent(term);
+
+    jsonp(url).then(function (data) {
+      var items = (data && data.results) || [];
+      if (!items.length) {
+        setStatus('No songs found for “' + term + '”. Try fewer words or a different spelling.');
+        return;
+      }
+      setStatus(items.length + ' song' + (items.length === 1 ? '' : 's') + ' for “' + term + '”');
+      render(items);
+    }).catch(function () {
+      setStatus('Could not reach iTunes. Check your connection and try again.', true);
+    });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var term = q.value.trim();
+    if (!term) { setStatus('Enter a song name to search.', true); q.focus(); return; }
+    q.blur();
+    search(term);
+  });
+})();
+</script>
+</body>
+</html>
